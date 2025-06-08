@@ -1,83 +1,84 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
 
-// Función para cargar los usuarios
-async function cargarUsuarios() {
-    try {
-        const usersRef = database.ref('usuarios');
-        usersRef.on('value', (snapshot) => {
-            const tbody = document.getElementById('usuariosBody');
-            tbody.innerHTML = '';
-            
-            snapshot.forEach(childSnapshot => {
-                const userId = childSnapshot.key;
-                const usuario = childSnapshot.val();
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${userId}</td>
-                    <td>${usuario.nombre}</td>
-                    <td>${usuario.email}</td>
-                    <td>
-                        <button class="btn btn-action btn-view" onclick="verUsuario('${userId}')">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="btn btn-action btn-edit" onclick="editarUsuario('${userId}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-action btn-delete" onclick="eliminarUsuario('${userId}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+function cargarUsuarios() {
+    const usersRef = database.ref('usuarios');
+    usersRef.on('value', (snapshot) => {
+        const tbody = document.getElementById('usuariosBody');
+        tbody.innerHTML = '';
+        if (!snapshot.exists()) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay usuarios registrados.</td></tr>';
+            return;
+        }
+        snapshot.forEach(childSnapshot => {
+            const userId = childSnapshot.key;
+            const usuario = childSnapshot.val();
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${userId}</td>
+                <td>${usuario.nombre || ''}</td>
+                <td>${usuario.email || ''}</td>
+                <td>
+                    <button class="btn btn-action btn-view" onclick="verUsuario('${userId}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-action btn-edit" onclick="editarUsuario('${userId}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-action btn-delete" onclick="eliminarUsuario('${userId}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
         });
-    } catch (error) {
-        console.error('Error al cargar usuarios:', error);
-        mostrarAlerta('Error al cargar los usuarios', 'danger');
-    }
+    }, (error) => {
+        mostrarAlerta('Error al cargar los usuarios: ' + error.message, 'danger');
+    });
 }
 
-// Función para cargar los certificados
-async function cargarCertificados() {
-    try {
-        const certsRef = database.ref('certificados');
-        certsRef.on('value', (snapshot) => {
-            const tbody = document.getElementById('certificadosBody');
-            tbody.innerHTML = '';
-            
-            snapshot.forEach(childSnapshot => {
-                const certId = childSnapshot.key;
-                const certificado = childSnapshot.val();
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${certId}</td>
-                    <td>${certificado.usuario_nombre}</td>
-                    <td>${formatearFecha(new Date(certificado.fecha_emision))}</td>
-                    <td><span class="status-${certificado.estado.toLowerCase()}">${certificado.estado}</span></td>
-                    <td>
-                        <button class="btn btn-action btn-view" onclick="verCertificado('${certId}')">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="btn btn-action btn-edit" onclick="editarCertificado('${certId}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-action btn-delete" onclick="eliminarCertificado('${certId}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+// Cargar certificados desde Firebase
+function cargarCertificados() {
+    const certsRef = database.ref('certificados');
+    certsRef.on('value', (snapshot) => {
+        const tbody = document.getElementById('certificadosBody');
+        tbody.innerHTML = '';
+        if (!snapshot.exists()) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No hay certificados generados.</td></tr>';
+            return;
+        }
+        snapshot.forEach(childSnapshot => {
+            const certId = childSnapshot.key;
+            const certificado = childSnapshot.val();
+            const estado = certificado.estado ? certificado.estado.toLowerCase() : 'desconocido';
+            tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${certId}</td>
+                <td>${certificado.usuario_nombre || ''}</td>
+                <td>${formatearFecha(new Date(certificado.fecha_emision))}</td>
+                <td><span class="status-${estado}">${certificado.estado || 'Desconocido'}</span></td>
+                <td>
+                    <button class="btn btn-action btn-view" onclick="verCertificado('${certId}')">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-action btn-edit" onclick="editarCertificado('${certId}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-action btn-delete" onclick="eliminarCertificado('${certId}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
         });
-    } catch (error) {
-        console.error('Error al cargar certificados:', error);
-        mostrarAlerta('Error al cargar los certificados', 'danger');
-    }
+    }, (error) => {
+        mostrarAlerta('Error al cargar los certificados: ' + error.message, 'danger');
+    });
 }
 
-// Funciones auxiliares
+// Formatea la fecha a español
 function formatearFecha(fecha) {
+    if (!(fecha instanceof Date) || isNaN(fecha)) return '';
     return fecha.toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'long',
@@ -85,6 +86,7 @@ function formatearFecha(fecha) {
     });
 }
 
+// Muestra una alerta Bootstrap
 function mostrarAlerta(mensaje, tipo) {
     const alertaDiv = document.createElement('div');
     alertaDiv.className = `alert alert-${tipo} alert-dismissible fade show`;
@@ -92,107 +94,72 @@ function mostrarAlerta(mensaje, tipo) {
         ${mensaje}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
     document.querySelector('.container').insertAdjacentElement('afterbegin', alertaDiv);
-    
-    setTimeout(() => {
-        alertaDiv.remove();
-    }, 5000);
+    setTimeout(() => alertaDiv.remove(), 5000);
 }
 
-// Funciones para las acciones de usuarios
-async function verUsuario(id) {
-    try {
-        const userRef = database.ref('usuarios/' + id);
-        userRef.once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const usuario = snapshot.val();
-                // Aquí puedes implementar la lógica para mostrar los detalles
-                console.log('Detalles del usuario:', usuario);
-            }
-        });
-    } catch (error) {
-        console.error('Error al obtener usuario:', error);
-        mostrarAlerta('Error al obtener los detalles del usuario', 'danger');
-    }
+// Acciones de usuario
+function verUsuario(id) {
+    const userRef = database.ref('usuarios/' + id);
+    userRef.once('value').then(snapshot => {
+        if (snapshot.exists()) {
+            const usuario = snapshot.val();
+            // Aquí puedes mostrar un modal con los detalles
+            alert(`Nombre: ${usuario.nombre}\nEmail: ${usuario.email}`);
+        } else {
+            mostrarAlerta('Usuario no encontrado', 'warning');
+        }
+    });
 }
 
-async function editarUsuario(id) {
-    try {
-        const userRef = database.ref('usuarios/' + id);
-        userRef.once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const usuario = snapshot.val();
-                // Aquí puedes implementar la lógica para editar
-                console.log('Editar usuario:', usuario);
-            }
-        });
-    } catch (error) {
-        console.error('Error al obtener usuario:', error);
-        mostrarAlerta('Error al obtener los detalles del usuario', 'danger');
-    }
+function editarUsuario(id) {
+    // Implementa aquí la lógica para editar usuario (modal, formulario, etc.)
+    mostrarAlerta('Función de edición aún no implementada', 'info');
 }
 
-async function eliminarUsuario(id) {
+function eliminarUsuario(id) {
     if (confirm('¿Está seguro de eliminar este usuario?')) {
-        try {
-            const userRef = database.ref('usuarios/' + id);
-            await userRef.remove();
-            mostrarAlerta('Usuario eliminado correctamente', 'success');
-            // Realtime Database listeners se encargan de actualizar la lista automáticamente
-        } catch (error) {
-            console.error('Error:', error);
-            mostrarAlerta('Error al eliminar el usuario', 'danger');
+        database.ref('usuarios/' + id).remove()
+            .then(() => mostrarAlerta('Usuario eliminado correctamente', 'success'))
+            .catch(error => mostrarAlerta('Error al eliminar el usuario: ' + error.message, 'danger'));
+    }
+}
+
+// Acciones de certificado
+function verCertificado(id) {
+    const certRef = database.ref('certificados/' + id);
+    certRef.once('value').then(snapshot => {
+        if (snapshot.exists()) {
+            const cert = snapshot.val();
+            // Puedes mostrar un modal con los detalles, o abrir el PDF si tienes la URL
+            if (cert.url_pdf) {
+                window.open(cert.url_pdf, '_blank');
+            } else {
+                alert(JSON.stringify(cert, null, 2));
+            }
+        } else {
+            mostrarAlerta('Certificado no encontrado', 'warning');
         }
-    }
+    });
 }
 
-// Funciones para las acciones de certificados
-async function verCertificado(id) {
-    try {
-        const certRef = database.ref('certificados/' + id);
-        certRef.once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const certificado = snapshot.val();
-                // Aquí puedes implementar la lógica para mostrar los detalles
-                console.log('Detalles del certificado:', certificado);
-            }
-        });
-    } catch (error) {
-        console.error('Error al obtener certificado:', error);
-        mostrarAlerta('Error al obtener los detalles del certificado', 'danger');
-    }
+function editarCertificado(id) {
+    mostrarAlerta('Función de edición aún no implementada', 'info');
 }
 
-async function editarCertificado(id) {
-    try {
-        const certRef = database.ref('certificados/' + id);
-        certRef.once('value', (snapshot) => {
-            if (snapshot.exists()) {
-                const certificado = snapshot.val();
-                // Aquí puedes implementar la lógica para editar
-                console.log('Editar certificado:', certificado);
-            }
-        });
-    } catch (error) {
-        console.error('Error al obtener certificado:', error);
-        mostrarAlerta('Error al obtener los detalles del certificado', 'danger');
-    }
-}
-
-async function eliminarCertificado(id) {
+function eliminarCertificado(id) {
     if (confirm('¿Está seguro de eliminar este certificado?')) {
-        try {
-            const certRef = database.ref('certificados/' + id);
-            await certRef.remove();
-            mostrarAlerta('Certificado eliminado correctamente', 'success');
-            // Realtime Database listeners se encargan de actualizar la lista automáticamente
-        } catch (error) {
-            console.error('Error:', error);
-            mostrarAlerta('Error al eliminar el certificado', 'danger');
-        }
+        database.ref('certificados/' + id).remove()
+            .then(() => mostrarAlerta('Certificado eliminado correctamente', 'success'))
+            .catch(error => mostrarAlerta('Error al eliminar el certificado: ' + error.message, 'danger'));
     }
 }
+
+// Inicializa la carga de datos al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+    cargarUsuarios();
+    cargarCertificados();
+});
 
 // Cargar datos al iniciar la página
 document.addEventListener('DOMContentLoaded', () => {
