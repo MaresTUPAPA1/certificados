@@ -1,7 +1,6 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
 
-/ Variables globales para almacenar todos los datos cargados
 let allUsers = [];
 let allCertificates = [];
 
