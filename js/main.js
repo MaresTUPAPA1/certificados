@@ -127,10 +127,10 @@ function eliminarUsuario(id) {
 
 // Acciones de certificado
 async function verCertificado(id) {
-    let loadingModalInstance = null; // Inicializar a null
+    let loadingModalInstance = null; 
 
     try {
-        loadingModalInstance = mostrarCargando(); // Mostrar carga
+        loadingModalInstance = mostrarCargando();
         
         const certRef = database.ref('certificados/' + id);
         const snapshot = await certRef.once('value');
@@ -138,12 +138,29 @@ async function verCertificado(id) {
         if (snapshot.exists()) {
             const cert = snapshot.val();
             
-            // Ahora buscamos 'pdf_base64' de nuevo
             if (cert.pdf_base64) {
                 const pdfBase64 = cert.pdf_base64;
-                const size = checkPdfSize(pdfBase64); // Usamos la función de tamaño para Base64
+                const size = checkPdfSize(pdfBase64);
 
-                // Creamos el modal para mostrar el PDF
+                // Ocultar el modal de carga y esperar a que esté completamente oculto
+                if (loadingModalInstance) {
+                    const loadingModalElement = document.getElementById('loadingModal');
+                    if (loadingModalElement) {
+                        await new Promise(resolve => {
+                            loadingModalElement.addEventListener('hidden.bs.modal', function handler() {
+                                loadingModalElement.removeEventListener('hidden.bs.modal', handler);
+                                ocultarCargando(loadingModalInstance); // Asegurarse de que se elimine
+                                resolve();
+                            });
+                            loadingModalInstance.hide();
+                        });
+                    } else {
+                        // Si el elemento no existe, simplemente ocultar y seguir
+                        ocultarCargando(loadingModalInstance);
+                    }
+                }
+                
+                // Crear el modal para mostrar el PDF (solo se ejecuta después de ocultar la carga)
                 const modalHtml = `
                     <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -166,12 +183,10 @@ async function verCertificado(id) {
                     </div>
                 `;
 
-                // Asegurarse de que el modal de visualización no se agregue múltiples veces
                 if (!document.getElementById('pdfViewerModal')) {
                     document.body.insertAdjacentHTML('beforeend', modalHtml);
                 }
 
-                // Convertir base64 a blob y crear URL
                 const byteCharacters = atob(pdfBase64);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -179,30 +194,23 @@ async function verCertificado(id) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(blob); // URL temporal para el Blob
+                const pdfUrl = URL.createObjectURL(blob);
 
-                // Mostrar el PDF en el iframe
                 const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
                 pdfViewerIframe.src = pdfUrl;
 
-                // Mostrar advertencia de tamaño si es grande
                 const pdfSizeWarning = document.getElementById('pdfSizeWarning');
-                if (size > 2) { // Advertir si es mayor a 2MB (ajusta este umbral si lo deseas)
+                if (size > 2) { 
                     pdfSizeWarning.textContent = `Advertencia: El tamaño de este certificado es de ${size.toFixed(2)} MB. Podría tardar en cargar o causar problemas de memoria en el navegador.`;
                 } else {
-                    pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
+                    pdfSizeWarning.textContent = '';
                 }
                 
-                ocultarCargando(loadingModalInstance); // Ocultar carga antes de mostrar el modal principal
-
-                // Mostrar el modal del PDF
                 const pdfViewerModal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
                 pdfViewerModal.show();
 
-                // Limpiar la URL del blob cuando se cierre el modal
                 document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
-                    URL.revokeObjectURL(pdfUrl); // Liberar la URL temporal del Blob
-                    // Opcional: Eliminar el modal del DOM para limpiar
+                    URL.revokeObjectURL(pdfUrl);
                     const modalElement = document.getElementById('pdfViewerModal');
                     if (modalElement) {
                         modalElement.remove();
@@ -210,15 +218,15 @@ async function verCertificado(id) {
                 });
 
             } else {
-                ocultarCargando(loadingModalInstance); // Ocultar carga si no hay PDF
+                ocultarCargando(loadingModalInstance);
                 mostrarAlerta('No se encontró el PDF en Base64 para este certificado.', 'warning');
             }
         } else {
-            ocultarCargando(loadingModalInstance); // Ocultar carga si no se encuentra el certificado
+            ocultarCargando(loadingModalInstance);
             mostrarAlerta('Certificado no encontrado.', 'warning');
         }
     } catch (error) {
-        ocultarCargando(loadingModalInstance); // Asegurarse de ocultar la carga en caso de error
+        ocultarCargando(loadingModalInstance);
         console.error('Error al ver el certificado:', error);
         mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
     }
