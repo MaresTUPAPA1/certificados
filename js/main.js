@@ -1,40 +1,111 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
 
+/ Variables globales para almacenar todos los datos cargados
+let allUsers = [];
+let allCertificates = [];
+
+// Función para mostrar/filtrar usuarios en la tabla
+function displayUsers(usersToDisplay, searchTerm = '') {
+    const tbody = document.getElementById('usuariosBody');
+    tbody.innerHTML = ''; // Limpiar la tabla antes de renderizar
+
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+    const filteredUsers = usersToDisplay.filter(user => {
+        const userName = user.nombre ? user.nombre.toLowerCase() : '';
+        const userEmail = user.email ? user.email.toLowerCase() : '';
+        return userName.includes(lowerCaseSearchTerm) || userEmail.includes(lowerCaseSearchTerm);
+    });
+
+    if (filteredUsers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No se encontraron usuarios.</td></tr>';
+        return;
+    }
+
+    filteredUsers.forEach(usuario => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${usuario.id}</td>
+            <td>${usuario.nombre || ''}</td>
+            <td>${usuario.email || ''}</td>
+            <td>
+                <button class="btn btn-action btn-view" onclick="verUsuario('${usuario.id}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-action btn-edit" onclick="editarUsuario('${usuario.id}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-action btn-delete" onclick="eliminarUsuario('${usuario.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
 // Cargar usuarios desde Firebase
 function cargarUsuarios() {
     const usersRef = database.ref('usuarios');
     usersRef.on('value', (snapshot) => {
-        const tbody = document.getElementById('usuariosBody');
-        tbody.innerHTML = '';
+        allUsers = []; // Limpiar el array global antes de llenarlo
         if (!snapshot.exists()) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay usuarios registrados.</td></tr>';
+            displayUsers([]); // Mostrar que no hay usuarios
             return;
         }
         snapshot.forEach(childSnapshot => {
             const userId = childSnapshot.key;
-            const usuario = childSnapshot.val();
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${userId}</td>
-                <td>${usuario.nombre || ''}</td>
-                <td>${usuario.email || ''}</td>
-                <td>
-                    <button class="btn btn-action btn-view" onclick="verUsuario('${userId}')">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-action btn-edit" onclick="editarUsuario('${userId}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-action btn-delete" onclick="eliminarUsuario('${userId}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
+            const userData = childSnapshot.val();
+            allUsers.push({ id: userId, ...userData }); // Almacenar también el ID de Firebase
         });
+        // Mostrar todos los usuarios inicialmente o aplicar el filtro si ya hay uno
+        const currentSearchTerm = document.getElementById('userSearchInput') ? document.getElementById('userSearchInput').value : '';
+        displayUsers(allUsers, currentSearchTerm);
     }, (error) => {
         mostrarAlerta('Error al cargar los usuarios: ' + error.message, 'danger');
+    });
+}
+
+// Función para mostrar/filtrar certificados en la tabla
+function displayCertificates(certsToDisplay, searchTerm = '') {
+    const tbody = document.getElementById('certificadosBody');
+    tbody.innerHTML = ''; // Limpiar la tabla antes de renderizar
+
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+    const filteredCerts = certsToDisplay.filter(cert => {
+        const userName = cert.usuario_nombre ? cert.usuario_nombre.toLowerCase() : '';
+        const certId = cert.id ? cert.id.toLowerCase() : ''; // Buscar también por ID de certificado
+        return userName.includes(lowerCaseSearchTerm) || certId.includes(lowerCaseSearchTerm);
+    });
+
+    if (filteredCerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No se encontraron certificados.</td></tr>';
+        return;
+    }
+
+    filteredCerts.forEach(certificado => {
+        const estado = certificado.estado ? certificado.estado.toLowerCase() : 'desconocido';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${certificado.id}</td>
+            <td>${certificado.usuario_nombre || ''}</td>
+            <td>${formatearFecha(new Date(certificado.fecha_emision))}</td>
+            <td><span class="status-${estado}">${certificado.estado || 'Desconocido'}</span></td>
+            <td>
+                <button class="btn btn-action btn-view" onclick="verCertificado('${certificado.id}')">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-action btn-edit" onclick="editarCertificado('${certificado.id}')">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-action btn-delete" onclick="eliminarCertificado('${certificado.id}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
     });
 }
 
@@ -42,36 +113,19 @@ function cargarUsuarios() {
 function cargarCertificados() {
     const certsRef = database.ref('certificados');
     certsRef.on('value', (snapshot) => {
-        const tbody = document.getElementById('certificadosBody');
-        tbody.innerHTML = '';
+        allCertificates = []; // Limpiar el array global
         if (!snapshot.exists()) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No hay certificados generados.</td></tr>';
+            displayCertificates([]); // Mostrar que no hay certificados
             return;
         }
         snapshot.forEach(childSnapshot => {
             const certId = childSnapshot.key;
-            const certificado = childSnapshot.val();
-            const estado = certificado.estado ? certificado.estado.toLowerCase() : 'desconocido';
-            tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${certId}</td>
-                <td>${certificado.usuario_nombre || ''}</td>
-                <td>${formatearFecha(new Date(certificado.fecha_emision))}</td>
-                <td><span class="status-${estado}">${certificado.estado || 'Desconocido'}</span></td>
-                <td>
-                    <button class="btn btn-action btn-view" onclick="verCertificado('${certId}')">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-action btn-edit" onclick="editarCertificado('${certId}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-action btn-delete" onclick="eliminarCertificado('${certId}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            `;
-            tbody.appendChild(tr);
+            const certData = childSnapshot.val();
+            allCertificates.push({ id: certId, ...certData }); // Almacenar también el ID de Firebase
         });
+        // Mostrar todos los certificados inicialmente o aplicar el filtro
+        const currentSearchTerm = document.getElementById('certSearchInput') ? document.getElementById('certSearchInput').value : '';
+        displayCertificates(allCertificates, currentSearchTerm);
     }, (error) => {
         mostrarAlerta('Error al cargar los certificados: ' + error.message, 'danger');
     });
@@ -105,7 +159,6 @@ function verUsuario(id) {
     userRef.once('value').then(snapshot => {
         if (snapshot.exists()) {
             const usuario = snapshot.val();
-            // Aquí puedes mostrar un modal con los detalles
             alert(`Nombre: ${usuario.nombre}\nEmail: ${usuario.email}`);
         } else {
             mostrarAlerta('Usuario no encontrado', 'warning');
@@ -114,7 +167,6 @@ function verUsuario(id) {
 }
 
 function editarUsuario(id) {
-    // Implementa aquí la lógica para editar usuario (modal, formulario, etc.)
     mostrarAlerta('Función de edición aún no implementada', 'info');
 }
 
@@ -129,10 +181,12 @@ function eliminarUsuario(id) {
 // Acciones de certificado
 async function verCertificado(id) {
     let loadingModalInstance = null; 
+    let loadingModalElement = null;
 
     try {
-        loadingModalInstance = mostrarCargando(); // Mostrar carga
-        
+        loadingModalInstance = mostrarCargando();
+        loadingModalElement = document.getElementById('loadingModal');
+
         const certRef = database.ref('certificados/' + id);
         const snapshot = await certRef.once('value');
 
@@ -143,7 +197,17 @@ async function verCertificado(id) {
                 const pdfBase64 = cert.pdf_base64;
                 const size = checkPdfSize(pdfBase64);
                 
-                // Crear un modal para mostrar el PDF
+                if (loadingModalInstance && loadingModalElement) {
+                    await new Promise(resolve => {
+                        loadingModalElement.addEventListener('hidden.bs.modal', function handler() {
+                            loadingModalElement.removeEventListener('hidden.bs.modal', handler);
+                            loadingModalElement.remove();
+                            resolve();
+                        });
+                        loadingModalInstance.hide();
+                    });
+                }
+                
                 const modalHtml = `
                     <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -166,12 +230,10 @@ async function verCertificado(id) {
                     </div>
                 `;
 
-                // Asegurarse de que el modal de visualización no se agregue múltiples veces
                 if (!document.getElementById('pdfViewerModal')) {
                     document.body.insertAdjacentHTML('beforeend', modalHtml);
                 }
 
-                // Convertir base64 a blob y crear URL
                 const byteCharacters = atob(pdfBase64);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -179,31 +241,23 @@ async function verCertificado(id) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(blob); // URL temporal para el Blob
+                const pdfUrl = URL.createObjectURL(blob);
 
-                // Mostrar el PDF en el iframe
                 const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
                 pdfViewerIframe.src = pdfUrl;
 
-                // Mostrar advertencia de tamaño si es grande
                 const pdfSizeWarning = document.getElementById('pdfSizeWarning');
-                if (size > 2) { // Advertir si es mayor a 2MB (ajusta este umbral si lo deseas)
+                if (size > 2) { 
                     pdfSizeWarning.textContent = `Advertencia: El tamaño de este certificado es de ${size.toFixed(2)} MB. Podría tardar en cargar o causar problemas de memoria en el navegador.`;
                 } else {
-                    pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
+                    pdfSizeWarning.textContent = '';
                 }
                 
-                // Ocultar la modal de carga INMEDIATAMENTE ANTES de mostrar la modal del PDF
-                ocultarCargando(loadingModalInstance); 
-
-                // Mostrar el modal del PDF
                 const pdfViewerModal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
                 pdfViewerModal.show();
 
-                // Limpiar la URL del blob cuando se cierre el modal
                 document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
-                    URL.revokeObjectURL(pdfUrl); // Liberar la URL temporal del Blob
-                    // Opcional: Eliminar el modal del DOM para limpiar
+                    URL.revokeObjectURL(pdfUrl);
                     const modalElement = document.getElementById('pdfViewerModal');
                     if (modalElement) {
                         modalElement.remove();
@@ -211,15 +265,21 @@ async function verCertificado(id) {
                 });
 
             } else {
-                ocultarCargando(loadingModalInstance); // Ocultar carga si no hay PDF
+                if (loadingModalElement) {
+                    loadingModalElement.remove();
+                }
                 mostrarAlerta('No se encontró el PDF en Base64 para este certificado.', 'warning');
             }
         } else {
-            ocultarCargando(loadingModalInstance); // Ocultar carga si no se encuentra el certificado
+            if (loadingModalElement) {
+                loadingModalElement.remove();
+            }
             mostrarAlerta('Certificado no encontrado.', 'warning');
         }
     } catch (error) {
-        ocultarCargando(loadingModalInstance); // Asegurarse de ocultar la carga en caso de error
+        if (loadingModalElement) {
+            loadingModalElement.remove();
+        }
         console.error('Error al ver el certificado:', error);
         mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
     }
@@ -237,27 +297,22 @@ function eliminarCertificado(id) {
     }
 }
 
-// Función para comprobar el tamaño del PDF en MB (para Base64)
 function checkPdfSize(base64String) {
-    // Estimación aproximada: cada 4 caracteres Base64 representan 3 bytes de datos originales
     const sizeInBytes = Math.ceil((base64String.length * 3) / 4);
     const sizeInMB = sizeInBytes / (1024 * 1024);
     return sizeInMB;
 }
 
-// Función para descargar el PDF (ahora prioriza Base64, pero compatible con URL si fuera necesario)
 function descargarPDF(base64String, nombreArchivo) {
-    // Si la cadena parece una URL, la trata como tal (aunque en este contexto, esperaremos Base64)
     if (base64String.startsWith('http')) {
         const link = document.createElement('a');
         link.href = base64String;
         link.download = nombreArchivo || 'certificado.pdf';
-        link.target = '_blank'; // Abrir en una nueva pestaña/ventana
+        link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     } else {
-        // Lógica para Base64
         const byteCharacters = atob(base64String);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -273,11 +328,10 @@ function descargarPDF(base64String, nombreArchivo) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(url); // Liberar la URL del objeto Blob
+        URL.revokeObjectURL(url);
     }
 }
 
-// Muestra un modal de carga
 function mostrarCargando() {
     const loadingHtml = `
         <div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
@@ -293,7 +347,6 @@ function mostrarCargando() {
             </div>
         </div>
     `;
-    // Asegurarse de que el modal no se agregue múltiples veces
     if (!document.getElementById('loadingModal')) {
         document.body.insertAdjacentHTML('beforeend', loadingHtml);
     }
@@ -302,20 +355,25 @@ function mostrarCargando() {
     return loadingModalInstance;
 }
 
-// Oculta el modal de carga
 function ocultarCargando(modalInstance) {
     if (modalInstance) {
         modalInstance.hide();
-        // Opcional: Eliminar el elemento del modal del DOM después de ocultarlo para limpiar
-        const modalElement = document.getElementById('loadingModal');
-        if (modalElement) {
-            modalElement.remove();
-        }
     }
 }
 
-// Inicializa la carga de datos al cargar la página
+// Inicializa la carga de datos y los listeners de búsqueda al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     cargarUsuarios();
     cargarCertificados();
+
+    // Añadir listeners para los campos de búsqueda
+    const userSearchInput = document.getElementById('userSearchInput');
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', (e) => displayUsers(allUsers, e.target.value));
+    }
+
+    const certSearchInput = document.getElementById('certSearchInput');
+    if (certSearchInput) {
+        certSearchInput.addEventListener('input', (e) => displayCertificates(allCertificates, e.target.value));
+    }
 });
