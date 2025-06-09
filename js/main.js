@@ -1,5 +1,9 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
+// Configuración de la API (ajusta si usas local)
+const API_URL = 'http://192.168.1.73/Proyecto/api/';
+
+// Variables globales para almacenar todos los datos cargados
 let allUsers = [];
 let allCertificates = [];
 
@@ -193,10 +197,11 @@ async function verCertificado(id) {
                 const pdfBase64 = cert.pdf_base64;
                 const size = checkPdfSize(pdfBase64);
                 
-                // Ocultar la modal de carga (inicia animación, pero no espera a que termine)
+                // Ocultar la modal de carga inmediatamente.
+                // La remoción del DOM se maneja dentro de ocultarCargando.
                 ocultarCargando(loadingModalInstance); 
-                
-                // Crear el modal para mostrar el PDF
+
+                // Crear el modal para mostrar el PDF (esto se hará casi inmediatamente después de ocultar la carga)
                 const modalHtml = `
                     <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -232,7 +237,7 @@ async function verCertificado(id) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(blob); // URL temporal para el Blob
+                const pdfUrl = URL.createObjectURL(blob);
 
                 // Mostrar el PDF en el iframe
                 const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
@@ -240,10 +245,10 @@ async function verCertificado(id) {
 
                 // Mostrar advertencia de tamaño si es grande
                 const pdfSizeWarning = document.getElementById('pdfSizeWarning');
-                if (size > 2) { // Advertir si es mayor a 2MB (ajusta este umbral si lo deseas)
+                if (size > 2) { 
                     pdfSizeWarning.textContent = `Advertencia: El tamaño de este certificado es de ${size.toFixed(2)} MB. Podría tardar en cargar o causar problemas de memoria en el navegador.`;
                 } else {
-                    pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
+                    pdfSizeWarning.textContent = '';
                 }
                 
                 // Mostrar el modal del PDF
@@ -252,8 +257,7 @@ async function verCertificado(id) {
 
                 // Limpiar la URL del blob cuando se cierre el modal
                 document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
-                    URL.revokeObjectURL(pdfUrl); // Liberar la URL temporal del Blob
-                    // Opcional: Eliminar el modal del DOM para limpiar
+                    URL.revokeObjectURL(pdfUrl);
                     const modalElement = document.getElementById('pdfViewerModal');
                     if (modalElement) {
                         modalElement.remove();
@@ -345,9 +349,21 @@ function mostrarCargando() {
     return loadingModalInstance;
 }
 
+// Oculta el modal de carga e inmediatamente lo remueve del DOM.
+// No espera por la animación de Bootstrap para la remoción.
 function ocultarCargando(modalInstance) {
     if (modalInstance) {
-        modalInstance.hide();
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            modalInstance.hide(); // Inicia la animación de ocultar de Bootstrap
+            // Un pequeño retardo antes de remover para permitir que la animación comience,
+            // pero sin esperar a que termine completamente.
+            setTimeout(() => {
+                if (modalElement && modalElement.parentNode) {
+                    modalElement.parentNode.removeChild(modalElement);
+                }
+            }, 100); // 100ms es un buen balance para que se vea que "se va"
+        }
     }
 }
 
