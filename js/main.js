@@ -127,19 +127,28 @@ function eliminarUsuario(id) {
 
 // Acciones de certificado
 function verCertificado(id) {
+    const loadingModal = mostrarCargando();
+    
     const certRef = database.ref('certificados/' + id);
     certRef.once('value').then(snapshot => {
+        loadingModal.hide();
         if (snapshot.exists()) {
             const cert = snapshot.val();
-            // Puedes mostrar un modal con los detalles, o abrir el PDF si tienes la URL
-            if (cert.url_pdf) {
-                window.open(cert.url_pdf, '_blank');
-            } else {
-                alert(JSON.stringify(cert, null, 2));
+            
+            if (cert.pdf_base64) {
+                const size = checkPdfSize(cert.pdf_base64);
+                if (size > 5) { // Si el PDF es mayor a 5MB
+                    mostrarAlerta('El certificado es muy grande para mostrarlo directamente. Por favor, descárguelo.', 'warning');
+                    // Opcional: Agregar botón de descarga
+                    return;
+                }
+                
+                // ... resto del código para mostrar el PDF ...
             }
-        } else {
-            mostrarAlerta('Certificado no encontrado', 'warning');
         }
+    }).catch(error => {
+        loadingModal.hide();
+        mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
     });
 }
 
@@ -155,13 +164,36 @@ function eliminarCertificado(id) {
     }
 }
 
-// Inicializa la carga de datos al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-    cargarUsuarios();
-    cargarCertificados();
-});
+// Función para comprobar el tamaño del PDF
+function checkPdfSize(base64String) {
+    const sizeInBytes = Math.ceil((base64String.length * 3) / 4);
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    return sizeInMB;
+}
 
-// Cargar datos al iniciar la página
+// Función para mostrar un mensaje de carga
+function mostrarCargando() {
+    const loadingHtml = `
+        <div class="modal fade" id="loadingModal" tabindex="-1">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-body text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-2">Cargando certificado...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModal.show();
+    return loadingModal;
+}
+
+// Inicializa la carga de datos al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     cargarUsuarios();
     cargarCertificados();
