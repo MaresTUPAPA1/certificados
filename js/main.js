@@ -1,6 +1,9 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
 
+
+
+// Cargar usuarios desde Firebase
 function cargarUsuarios() {
     const usersRef = database.ref('usuarios');
     usersRef.on('value', (snapshot) => {
@@ -128,10 +131,12 @@ function eliminarUsuario(id) {
 // Acciones de certificado
 async function verCertificado(id) {
     let loadingModalInstance = null; 
+    let loadingModalElement = null; // Variable para almacenar la referencia al elemento DOM del modal de carga
 
     try {
-        loadingModalInstance = mostrarCargando(); // Mostrar carga
-        
+        loadingModalInstance = mostrarCargando();
+        loadingModalElement = document.getElementById('loadingModal'); // Obtener la referencia al elemento
+
         const certRef = database.ref('certificados/' + id);
         const snapshot = await certRef.once('value');
 
@@ -142,7 +147,20 @@ async function verCertificado(id) {
                 const pdfBase64 = cert.pdf_base64;
                 const size = checkPdfSize(pdfBase64);
                 
-                // Crear un modal para mostrar el PDF
+                // Asegurar que el modal de carga esté completamente oculto ANTES de mostrar el PDF modal
+                if (loadingModalInstance && loadingModalElement) {
+                    await new Promise(resolve => {
+                        // Escuchar el evento 'hidden.bs.modal' para saber cuándo la animación terminó
+                        loadingModalElement.addEventListener('hidden.bs.modal', function handler() {
+                            loadingModalElement.removeEventListener('hidden.bs.modal', handler); // Limpiar el listener
+                            loadingModalElement.remove(); // Remover el elemento del DOM aquí
+                            resolve(); // Resolver la promesa para continuar
+                        });
+                        ocultarCargando(loadingModalInstance); // Iniciar la animación de ocultar
+                    });
+                }
+                
+                // Crear el modal para mostrar el PDF (solo se ejecuta después de que el modal de carga esté oculto)
                 const modalHtml = `
                     <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -165,7 +183,6 @@ async function verCertificado(id) {
                     </div>
                 `;
 
-                // Asegurarse de que el modal de visualización no se agregue múltiples veces
                 if (!document.getElementById('pdfViewerModal')) {
                     document.body.insertAdjacentHTML('beforeend', modalHtml);
                 }
@@ -178,7 +195,7 @@ async function verCertificado(id) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
-                const pdfUrl = URL.createObjectURL(blob); // URL temporal para el Blob
+                const pdfUrl = URL.createObjectURL(blob);
 
                 // Mostrar el PDF en el iframe
                 const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
@@ -192,17 +209,11 @@ async function verCertificado(id) {
                     pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
                 }
                 
-                // Ocultar la modal de carga INMEDIATAMENTE ANTES de mostrar la modal del PDF
-                ocultarCargando(loadingModalInstance); 
-
-                // Mostrar el modal del PDF
                 const pdfViewerModal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
                 pdfViewerModal.show();
 
-                // Limpiar la URL del blob cuando se cierre el modal
                 document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
-                    URL.revokeObjectURL(pdfUrl); // Liberar la URL temporal del Blob
-                    // Opcional: Eliminar el modal del DOM para limpiar
+                    URL.revokeObjectURL(pdfUrl);
                     const modalElement = document.getElementById('pdfViewerModal');
                     if (modalElement) {
                         modalElement.remove();
@@ -210,15 +221,22 @@ async function verCertificado(id) {
                 });
 
             } else {
-                ocultarCargando(loadingModalInstance); // Ocultar carga si no hay PDF
+                // Si no hay PDF o certificado no encontrado/error, asegurar que la carga se oculta correctamente
+                if (loadingModalElement) {
+                    loadingModalElement.remove(); // Remover si no se espera la animación
+                }
                 mostrarAlerta('No se encontró el PDF en Base64 para este certificado.', 'warning');
             }
         } else {
-            ocultarCargando(loadingModalInstance); // Ocultar carga si no se encuentra el certificado
+            if (loadingModalElement) {
+                loadingModalElement.remove(); // Remover si no se espera la animación
+            }
             mostrarAlerta('Certificado no encontrado.', 'warning');
         }
     } catch (error) {
-        ocultarCargando(loadingModalInstance); // Asegurarse de ocultar la carga en caso de error
+        if (loadingModalElement) {
+            loadingModalElement.remove(); // Remover si no se espera la animación
+        }
         console.error('Error al ver el certificado:', error);
         mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
     }
@@ -301,15 +319,14 @@ function mostrarCargando() {
     return loadingModalInstance;
 }
 
-// Oculta el modal de carga
+// Oculta el modal de carga (solo inicia la animación de ocultar)
+// El elemento del DOM se removerá cuando su animación haya terminado
 function ocultarCargando(modalInstance) {
     if (modalInstance) {
         modalInstance.hide();
-        // Opcional: Eliminar el elemento del modal del DOM después de ocultarlo para limpiar
-        const modalElement = document.getElementById('loadingModal');
-        if (modalElement) {
-            modalElement.remove();
-        }
+        // IMPORTANTE: Se ha quitado la línea 'modalElement.remove();' de aquí.
+        // La eliminación del elemento ahora se maneja en 'verCertificado'
+        // después de que la animación de ocultamiento haya terminado.
     }
 }
 
