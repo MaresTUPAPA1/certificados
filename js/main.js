@@ -1,7 +1,5 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
-// Configuración de la API (ajusta si usas local)
-const API_URL = 'http://192.168.1.73/Proyecto/api/';
 
 // Cargar usuarios desde Firebase
 function cargarUsuarios() {
