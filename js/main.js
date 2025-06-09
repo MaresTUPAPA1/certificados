@@ -1,9 +1,6 @@
 // Configuración de la API
 const API_URL = 'https://inges0985.infy.uk/Proyecto/api/';
 
-
-
-// Cargar usuarios desde Firebase
 function cargarUsuarios() {
     const usersRef = database.ref('usuarios');
     usersRef.on('value', (snapshot) => {
@@ -295,29 +292,6 @@ function descargarPDF(base64String, nombreArchivo) {
 }
 
 // Muestra un modal de carga
-function mostrarCargando() {
-    const loadingHtml = `
-        <div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-sm modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-body text-center">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Cargando...</span>
-                        </div>
-                        <p class="mt-2">Cargando certificado...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    // Asegurarse de que el modal no se agregue múltiples veces
-    if (!document.getElementById('loadingModal')) {
-        document.body.insertAdjacentHTML('beforeend', loadingHtml);
-    }
-    const loadingModalInstance = new bootstrap.Modal(document.getElementById('loadingModal'));
-    loadingModalInstance.show();
-    return loadingModalInstance;
-}
 
 // Oculta el modal de carga (solo inicia la animación de ocultar)
 // El elemento del DOM se removerá cuando su animación haya terminado
