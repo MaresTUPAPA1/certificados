@@ -127,10 +127,10 @@ function eliminarUsuario(id) {
 
 // Acciones de certificado
 async function verCertificado(id) {
-    let loadingModalInstance = null; 
+    let loadingModalInstance = null; // Inicializar a null
 
     try {
-        loadingModalInstance = mostrarCargando();
+        loadingModalInstance = mostrarCargando(); // Mostrar carga
         
         const certRef = database.ref('certificados/' + id);
         const snapshot = await certRef.once('value');
@@ -138,10 +138,12 @@ async function verCertificado(id) {
         if (snapshot.exists()) {
             const cert = snapshot.val();
             
-            if (cert.pdf_url) {
-                const pdfUrl = cert.pdf_url;
-                
-                // Creamos el modal de visualización del PDF
+            // Ahora buscamos 'pdf_base64' de nuevo
+            if (cert.pdf_base64) {
+                const pdfBase64 = cert.pdf_base64;
+                const size = checkPdfSize(pdfBase64); // Usamos la función de tamaño para Base64
+
+                // Creamos el modal para mostrar el PDF
                 const modalHtml = `
                     <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
                         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -151,30 +153,56 @@ async function verCertificado(id) {
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body text-center">
+                                    <p class="text-muted" id="pdfSizeWarning"></p>
                                     <div class="mb-3">
-                                        <a href="${pdfUrl}" class="btn btn-primary" download="certificado_${cert.usuario_nombre || 'generico'}.pdf" target="_blank">
+                                        <button class="btn btn-primary" onclick="descargarPDF('${pdfBase64}', 'certificado_${cert.usuario_nombre || 'generico'}.pdf')">
                                             <i class="fas fa-download"></i> Descargar PDF
-                                        </a>
+                                        </button>
                                     </div>
-                                    <iframe src="${pdfUrl}" style="width: 100%; height: 75vh; border: none; background-color: #f8f9fa;"></iframe>
+                                    <iframe id="pdfDisplayIframe" style="width: 100%; height: 75vh; border: none; background-color: #f8f9fa;"></iframe>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
 
+                // Asegurarse de que el modal de visualización no se agregue múltiples veces
                 if (!document.getElementById('pdfViewerModal')) {
                     document.body.insertAdjacentHTML('beforeend', modalHtml);
                 }
-                
-                ocultarCargando(loadingModalInstance);
 
-                // Mostramos el modal
+                // Convertir base64 a blob y crear URL
+                const byteCharacters = atob(pdfBase64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(blob); // URL temporal para el Blob
+
+                // Mostrar el PDF en el iframe
+                const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
+                pdfViewerIframe.src = pdfUrl;
+
+                // Mostrar advertencia de tamaño si es grande
+                const pdfSizeWarning = document.getElementById('pdfSizeWarning');
+                if (size > 2) { // Advertir si es mayor a 2MB (ajusta este umbral si lo deseas)
+                    pdfSizeWarning.textContent = `Advertencia: El tamaño de este certificado es de ${size.toFixed(2)} MB. Podría tardar en cargar o causar problemas de memoria en el navegador.`;
+                } else {
+                    pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
+                }
+                
+                ocultarCargando(loadingModalInstance); // Ocultar carga antes de mostrar el modal principal
+
+                // Mostrar el modal del PDF
                 const pdfViewerModal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
                 pdfViewerModal.show();
 
-                // Eliminamos el modal del DOM cuando se cierre para limpiar
+                // Limpiar la URL del blob cuando se cierre el modal
                 document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
+                    URL.revokeObjectURL(pdfUrl); // Liberar la URL temporal del Blob
+                    // Opcional: Eliminar el modal del DOM para limpiar
                     const modalElement = document.getElementById('pdfViewerModal');
                     if (modalElement) {
                         modalElement.remove();
@@ -182,15 +210,15 @@ async function verCertificado(id) {
                 });
 
             } else {
-                ocultarCargando(loadingModalInstance);
-                mostrarAlerta('No se encontró la URL del PDF para este certificado.', 'warning');
+                ocultarCargando(loadingModalInstance); // Ocultar carga si no hay PDF
+                mostrarAlerta('No se encontró el PDF en Base64 para este certificado.', 'warning');
             }
         } else {
-            ocultarCargando(loadingModalInstance);
+            ocultarCargando(loadingModalInstance); // Ocultar carga si no se encuentra el certificado
             mostrarAlerta('Certificado no encontrado.', 'warning');
         }
     } catch (error) {
-        ocultarCargando(loadingModalInstance);
+        ocultarCargando(loadingModalInstance); // Asegurarse de ocultar la carga en caso de error
         console.error('Error al ver el certificado:', error);
         mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
     }
@@ -208,19 +236,28 @@ function eliminarCertificado(id) {
     }
 }
 
-// Función para descargar el PDF
-function descargarPDF(urlOrBase64String, nombreArchivo) {
-    if (urlOrBase64String.startsWith('http')) {
+// Función para comprobar el tamaño del PDF en MB (para Base64)
+function checkPdfSize(base64String) {
+    // Estimación aproximada: cada 4 caracteres Base64 representan 3 bytes de datos originales
+    const sizeInBytes = Math.ceil((base64String.length * 3) / 4);
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+    return sizeInMB;
+}
+
+// Función para descargar el PDF (ahora prioriza Base64, pero compatible con URL si fuera necesario)
+function descargarPDF(base64String, nombreArchivo) {
+    // Si la cadena parece una URL, la trata como tal (aunque en este contexto, esperaremos Base64)
+    if (base64String.startsWith('http')) {
         const link = document.createElement('a');
-        link.href = urlOrBase64String;
+        link.href = base64String;
         link.download = nombreArchivo || 'certificado.pdf';
         link.target = '_blank'; // Abrir en una nueva pestaña/ventana
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     } else {
-        // Lógica de descarga de Base64 si por alguna razón todavía recibes Base64
-        const byteCharacters = atob(urlOrBase64String);
+        // Lógica para Base64
+        const byteCharacters = atob(base64String);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -235,7 +272,7 @@ function descargarPDF(urlOrBase64String, nombreArchivo) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url); // Liberar la URL del objeto Blob
     }
 }
 
