@@ -126,30 +126,101 @@ function eliminarUsuario(id) {
 }
 
 // Acciones de certificado
-function verCertificado(id) {
-    const loadingModal = mostrarCargando();
-    
-    const certRef = database.ref('certificados/' + id);
-    certRef.once('value').then(snapshot => {
-        loadingModal.hide();
+async function verCertificado(id) {
+    let loadingModalInstance = null; // Inicializar a null
+
+    try {
+        loadingModalInstance = mostrarCargando(); // Mostrar carga
+        
+        const certRef = database.ref('certificados/' + id);
+        const snapshot = await certRef.once('value');
+
         if (snapshot.exists()) {
             const cert = snapshot.val();
             
             if (cert.pdf_base64) {
-                const size = checkPdfSize(cert.pdf_base64);
-                if (size > 5) { // Si el PDF es mayor a 5MB
-                    mostrarAlerta('El certificado es muy grande para mostrarlo directamente. Por favor, descárguelo.', 'warning');
-                    // Opcional: Agregar botón de descarga
-                    return;
+                const pdfBase64 = cert.pdf_base64;
+                const size = checkPdfSize(pdfBase64);
+                
+                // Crear un modal para mostrar el PDF
+                const modalHtml = `
+                    <div class="modal fade" id="pdfViewerModal" tabindex="-1" aria-labelledby="pdfViewerModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="pdfViewerModalLabel">Certificado de ${cert.usuario_nombre || 'Usuario'}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <p class="text-muted" id="pdfSizeWarning"></p>
+                                    <div class="mb-3">
+                                        <button class="btn btn-primary" onclick="descargarPDF('${pdfBase64}', 'certificado_${cert.usuario_nombre || 'generico'}.pdf')">
+                                            <i class="fas fa-download"></i> Descargar PDF
+                                        </button>
+                                    </div>
+                                    <iframe id="pdfDisplayIframe" style="width: 100%; height: 75vh; border: none; background-color: #f8f9fa;"></iframe>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Asegurarse de que el modal de visualización no se agregue múltiples veces
+                if (!document.getElementById('pdfViewerModal')) {
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                }
+
+                // Convertir base64 a blob y crear URL
+                const byteCharacters = atob(pdfBase64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                const pdfUrl = URL.createObjectURL(blob);
+
+                // Mostrar el PDF en el iframe
+                const pdfViewerIframe = document.getElementById('pdfDisplayIframe');
+                pdfViewerIframe.src = pdfUrl;
+
+                // Mostrar advertencia de tamaño si es grande
+                const pdfSizeWarning = document.getElementById('pdfSizeWarning');
+                if (size > 2) { // Advertir si es mayor a 2MB
+                    pdfSizeWarning.textContent = `Advertencia: El tamaño de este certificado es de ${size.toFixed(2)} MB. Podría tardar en cargar o causar problemas en navegadores antiguos.`;
+                } else {
+                    pdfSizeWarning.textContent = ''; // Limpiar advertencia si no es grande
                 }
                 
-                // ... resto del código para mostrar el PDF ...
+                ocultarCargando(loadingModalInstance); // Ocultar carga antes de mostrar el modal principal
+
+                // Mostrar el modal del PDF
+                const pdfViewerModal = new bootstrap.Modal(document.getElementById('pdfViewerModal'));
+                pdfViewerModal.show();
+
+                // Limpiar la URL del blob cuando se cierre el modal
+                document.getElementById('pdfViewerModal').addEventListener('hidden.bs.modal', function () {
+                    URL.revokeObjectURL(pdfUrl);
+                    // Opcional: Eliminar el modal del DOM para limpiar
+                    const modalElement = document.getElementById('pdfViewerModal');
+                    if (modalElement) {
+                        modalElement.remove();
+                    }
+                });
+
+            } else {
+                ocultarCargando(loadingModalInstance); // Ocultar carga si no hay PDF
+                mostrarAlerta('No se encontró el PDF en base64 para este certificado.', 'warning');
             }
+        } else {
+            ocultarCargando(loadingModalInstance); // Ocultar carga si no se encuentra el certificado
+            mostrarAlerta('Certificado no encontrado.', 'warning');
         }
-    }).catch(error => {
-        loadingModal.hide();
+    } catch (error) {
+        ocultarCargando(loadingModalInstance); // Asegurarse de ocultar la carga en caso de error
+        console.error('Error al ver el certificado:', error);
         mostrarAlerta('Error al cargar el certificado: ' + error.message, 'danger');
-    });
+    }
 }
 
 function editarCertificado(id) {
@@ -164,18 +235,38 @@ function eliminarCertificado(id) {
     }
 }
 
-// Función para comprobar el tamaño del PDF
+// Función para comprobar el tamaño del PDF en MB
 function checkPdfSize(base64String) {
-    const sizeInBytes = Math.ceil((base64String.length * 3) / 4);
+    const sizeInBytes = Math.ceil((base64String.length * 3) / 4); // Estimación aproximada para base64
     const sizeInMB = sizeInBytes / (1024 * 1024);
     return sizeInMB;
 }
 
-// Función para mostrar un mensaje de carga
+// Función para descargar el PDF
+function descargarPDF(base64String, nombreArchivo) {
+    const byteCharacters = atob(base64String);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nombreArchivo || 'certificado.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url); // Liberar la URL del objeto Blob
+}
+
+// Muestra un modal de carga
 function mostrarCargando() {
     const loadingHtml = `
-        <div class="modal fade" id="loadingModal" tabindex="-1">
-            <div class="modal-dialog modal-sm">
+        <div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-body text-center">
                         <div class="spinner-border text-primary" role="status">
@@ -187,10 +278,25 @@ function mostrarCargando() {
             </div>
         </div>
     `;
-    document.body.insertAdjacentHTML('beforeend', loadingHtml);
-    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    loadingModal.show();
-    return loadingModal;
+    // Asegurarse de que el modal no se agregue múltiples veces
+    if (!document.getElementById('loadingModal')) {
+        document.body.insertAdjacentHTML('beforeend', loadingHtml);
+    }
+    const loadingModalInstance = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModalInstance.show();
+    return loadingModalInstance;
+}
+
+// Oculta el modal de carga
+function ocultarCargando(modalInstance) {
+    if (modalInstance) {
+        modalInstance.hide();
+        // Opcional: Eliminar el elemento del modal del DOM después de ocultarlo para limpiar
+        const modalElement = document.getElementById('loadingModal');
+        if (modalElement) {
+            modalElement.remove();
+        }
+    }
 }
 
 // Inicializa la carga de datos al cargar la página
